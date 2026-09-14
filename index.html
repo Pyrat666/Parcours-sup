@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcoursup — exploration par priorisation</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1>Explorer Parcoursup</h1>
+    <p class="sub">Catalogue des formations — tri de cartes par priorité</p>
+  </div>
+  <div class="tools">
+    <input id="search" type="search" placeholder="Filtrer (ville, établissement…)" autocomplete="off">
+    <button id="reset" type="button" class="ghost">Réinitialiser</button>
+    <button id="toggle-config" type="button" class="ghost" aria-expanded="false">Champs</button>
+  </div>
+</header>
+
+<section id="config" class="config" hidden>
+  <p class="hint">
+    Les niveaux de l'arborescence sont détectés automatiquement dans le schéma du jeu de données.
+    Si la détection est mauvaise, choisis les champs à la main.
+  </p>
+  <div class="config-grid">
+    <label>Niveau 1 <select id="cfg-l1"></select></label>
+    <label>Niveau 2 <select id="cfg-l2"></select></label>
+    <label>Établissement <select id="cfg-etab"></select></label>
+    <label>Commune <select id="cfg-commune"></select></label>
+  </div>
+</section>
+
+<nav id="breadcrumb" class="breadcrumb" aria-label="Chemin de priorisation"></nav>
+
+<main>
+  <section class="deck-pane">
+    <div class="pane-head">
+      <h2 id="deck-title">Chargement…</h2>
+      <div class="pane-actions">
+        <button id="sort-count" type="button" class="ghost" title="Reclasser par nombre de formations">Trier par volume</button>
+        <button id="sort-alpha" type="button" class="ghost" title="Reclasser par ordre alphabétique">Trier A→Z</button>
+      </div>
+    </div>
+    <p id="deck-help" class="hint"></p>
+    <div id="status" class="status" hidden></div>
+    <ol id="deck" class="deck"></ol>
+    <div id="deck-more" class="more" hidden><button id="load-more" type="button">Charger la suite</button></div>
+  </section>
+
+  <aside class="shortlist-pane">
+    <div class="pane-head">
+      <h2>Ma liste de vœux <span id="shortlist-count" class="badge">0</span></h2>
+      <button id="export" type="button" class="ghost">Exporter CSV</button>
+    </div>
+    <p class="hint">Les formations retenues, classées selon la priorité donnée à chaque étage.</p>
+    <ol id="shortlist" class="shortlist"></ol>
+  </aside>
+</main>
+
+<footer class="footer">
+  Source&nbsp;: <code>fr-esr-cartographie_formations_parcoursup</code> — API Opendatasoft Explore v2.1,
+  ministère de l'Enseignement supérieur et de la Recherche. Données publiques, aucune donnée candidat.
+</footer>
+
+<script src="assets/app.js"></script>
+</body>
+</html>
