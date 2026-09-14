@@ -661,16 +661,6 @@ el('toggle-config').addEventListener('click', () => {
   el('toggle-config').setAttribute('aria-expanded', String(!panel.hidden));
 });
 
-el('sort-count').addEventListener('click', () => {
-  state.cards.sort((a, b) => (b.count || 0) - (a.count || 0));
-  renderDeck();
-});
-
-el('sort-alpha').addEventListener('click', () => {
-  state.cards.sort((a, b) => String(a.value).localeCompare(String(b.value), 'fr'));
-  renderDeck();
-});
-
 el('load-more').addEventListener('click', loadMore);
 el('export').addEventListener('click', exportCsv);
 

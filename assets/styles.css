@@ -189,8 +189,6 @@ main {
   margin-bottom: 8px;
 }
 
-.pane-actions { display: flex; gap: 6px; }
-
 .badge {
   display: inline-block;
   min-width: 22px;
