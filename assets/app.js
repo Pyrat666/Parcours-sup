@@ -291,12 +291,10 @@ function renderDeck() {
   const depth = state.path.length;
   if (state.isLeaf) {
     el('deck-title').textContent = `Formations (${state.total})`;
-    el('deck-help').textContent =
-      'Classe les formations par préférence, puis ajoute celles que tu retiens à ta liste de vœux.';
+    el('deck-help').textContent = 'Classe, puis retiens celles qui t’intéressent.';
   } else {
     el('deck-title').textContent = labelOf(state.levels[depth]);
-    el('deck-help').textContent =
-      'Glisse les cartes pour les classer par ordre de préférence, puis ouvre celle qui arrive en tête.';
+    el('deck-help').textContent = 'Glisse les cartes par ordre de préférence, puis ouvre la première.';
   }
 
   if (!state.cards.length) {
@@ -348,16 +346,10 @@ function buildCard(card, index) {
     iconButton('↓', 'Descendre', () => reorder(index, index + 1)),
   );
 
-  const main = document.createElement('button');
-  main.type = 'button';
-  if (state.isLeaf) {
-    main.textContent = 'Retenir';
-    main.addEventListener('click', () => addToShortlist(index));
-  } else {
-    main.textContent = 'Ouvrir';
-    main.addEventListener('click', () => descend(index));
-  }
-  actions.append(main);
+  const action = state.isLeaf
+    ? actionButton('Retenir', '＋', () => addToShortlist(index))
+    : actionButton('Ouvrir', '›', () => descend(index));
+  actions.append(action);
 
   item.append(rank, body, actions);
   attachDrag(item, () => state.cards, renderDeck);
@@ -381,6 +373,26 @@ function buildHandle(index) {
 
   handle.append(number, grip);
   return handle;
+}
+
+/** Bouton d'action d'une carte : texte sur grand écran, chevron sur mobile. */
+function actionButton(label, glyph, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.setAttribute('aria-label', label);
+
+  const full = document.createElement('span');
+  full.className = 'full';
+  full.textContent = label;
+
+  const short = document.createElement('span');
+  short.className = 'short';
+  short.setAttribute('aria-hidden', 'true');
+  short.textContent = glyph;
+
+  button.append(full, short);
+  button.addEventListener('click', onClick);
+  return button;
 }
 
 function iconButton(glyph, title, onClick) {
