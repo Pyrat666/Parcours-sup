@@ -93,9 +93,17 @@ button.icon {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
-  padding: 2px 8px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 2px 6px;
   line-height: 1.4;
   font-size: .9rem;
+}
+
+/* Les flèches restent pour le clavier et la souris, mais le geste principal
+   sur mobile est le glissement : on les efface de l'écran étroit. */
+@media (max-width: 560px) {
+  .card .actions button.icon { display: none; }
 }
 
 /* ---------- config ---------- */
@@ -216,28 +224,65 @@ main {
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  cursor: grab;
+  transition: box-shadow .15s, transform .12s;
 }
 
 .card:hover { border-color: var(--accent); }
-.card.dragging { opacity: .4; }
-.card.drop-target { border-color: var(--accent); background: var(--accent-soft); }
 
-.card .rank {
-  width: 30px;
-  height: 30px;
+/* Carte saisie : soulevée, au-dessus des autres, et transportée par
+   `transform` pendant que le doigt bouge. */
+.card.dragging {
+  position: relative;
+  z-index: 5;
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, .22);
+  transform-origin: center;
+  transition: none;
+}
+
+/* Pendant un déplacement, rien d'autre ne doit être sélectionnable. */
+body.is-dragging { user-select: none; -webkit-user-select: none; }
+body.is-dragging .card:not(.dragging) { transition: transform .18s ease; }
+
+/* Poignée : cible tactile de 44px, `touch-action: none` pour que le geste
+   ne soit pas confisqué par le défilement de la page. */
+.card .drag-handle {
   display: grid;
-  place-items: center;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  width: 44px;
+  min-height: 44px;
   border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent);
+  touch-action: none;
+  cursor: grab;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card .drag-handle:active { cursor: grabbing; }
+
+.card .rank-number {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: .9rem;
+  font-size: .95rem;
+  line-height: 1;
+}
+
+/* Trois points en deux colonnes : le signe usuel d'un élément déplaçable. */
+.card .grip {
+  width: 10px;
+  height: 7px;
+  opacity: .55;
+  background-image: radial-gradient(currentColor 42%, transparent 46%);
+  background-size: 4px 3.5px;
+  background-repeat: repeat;
 }
 
 .card .label { font-weight: 600; overflow-wrap: anywhere; }
@@ -246,7 +291,7 @@ main {
 
 .card a { color: var(--accent); }
 
-.shortlist .card { grid-template-columns: auto minmax(0, 1fr) auto; cursor: grab; }
+.shortlist .card { grid-template-columns: auto minmax(0, 1fr) auto; }
 .shortlist .priority { font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--muted); }
 
 .empty { color: var(--muted); font-size: .85rem; padding: 10px 0; }

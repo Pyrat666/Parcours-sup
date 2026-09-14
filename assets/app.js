@@ -314,12 +314,9 @@ function renderDeck() {
 function buildCard(card, index) {
   const item = document.createElement('li');
   item.className = 'card';
-  item.draggable = true;
   item.dataset.index = String(index);
 
-  const rank = document.createElement('div');
-  rank.className = 'rank';
-  rank.textContent = String(index + 1);
+  const rank = buildHandle(index);
 
   const body = document.createElement('div');
   const label = document.createElement('div');
@@ -367,6 +364,25 @@ function buildCard(card, index) {
   return item;
 }
 
+/** Poignée de glissement : cible tactile large portant aussi le rang. */
+function buildHandle(index) {
+  const handle = document.createElement('div');
+  handle.className = 'rank drag-handle';
+  handle.setAttribute('role', 'button');
+  handle.setAttribute('aria-label', `Déplacer — position ${index + 1}`);
+
+  const number = document.createElement('span');
+  number.className = 'rank-number';
+  number.textContent = String(index + 1);
+
+  const grip = document.createElement('span');
+  grip.className = 'grip';
+  grip.setAttribute('aria-hidden', 'true');
+
+  handle.append(number, grip);
+  return handle;
+}
+
 function iconButton(glyph, title, onClick) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -399,12 +415,9 @@ function renderShortlist() {
   state.shortlist.forEach((item, index) => {
     const node = document.createElement('li');
     node.className = 'card';
-    node.draggable = true;
     node.dataset.index = String(index);
 
-    const rank = document.createElement('div');
-    rank.className = 'rank';
-    rank.textContent = String(index + 1);
+    const rank = buildHandle(index);
 
     const body = document.createElement('div');
     const label = document.createElement('div');
@@ -433,37 +446,96 @@ function renderShortlist() {
 
 /* ------------------------------------------------------------------ *
  * Glisser-déposer
+ *
+ * L'API drag-and-drop HTML5 est inopérante sur écran tactile : tout passe
+ * donc par les Pointer Events, identiques au doigt et à la souris. La poignée
+ * porte `touch-action: none` pour que le geste ne soit pas capté par le
+ * défilement de la page.
  * ------------------------------------------------------------------ */
 
-let dragSource = null;
+const EDGE = 90;        // zone haute/basse déclenchant le défilement automatique
+const SCROLL_STEP = 12;
 
 function attachDrag(node, getList, rerender) {
-  node.addEventListener('dragstart', (event) => {
-    dragSource = { list: getList(), index: Number(node.dataset.index), rerender };
+  const handle = node.querySelector('.drag-handle');
+  if (!handle) return;
+
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+
+    const list = getList();
+    const parent = node.parentElement;
+    // La capture garde le geste attaché à la poignée même si le doigt sort de
+    // la carte ; elle n'est pas indispensable, d'où le filet de sécurité.
+    try { handle.setPointerCapture(event.pointerId); } catch { /* sans capture */ }
+
+    let originY = event.clientY;
+    let pointer = { x: event.clientX, y: event.clientY };
+    document.body.classList.add('is-dragging');
     node.classList.add('dragging');
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', node.dataset.index);
+
+    /** Échange la carte saisie avec celle survolée, sans reconstruire le DOM. */
+    const swapIfNeeded = () => {
+      node.style.pointerEvents = 'none';
+      const under = document.elementFromPoint(pointer.x, pointer.y);
+      node.style.pointerEvents = '';
+
+      const target = under && under.closest('.card');
+      if (!target || target === node || target.parentElement !== parent) return;
+
+      const from = Number(node.dataset.index);
+      const to = Number(target.dataset.index);
+      move(list, from, to);
+      parent.insertBefore(node, to > from ? target.nextSibling : target);
+      syncIndices(parent);
+
+      // Le nœud a changé de place : on repart de la position actuelle du doigt.
+      originY = pointer.y;
+      node.style.transform = 'translateY(0px)';
+    };
+
+    const autoScroll = setInterval(() => {
+      const delta = pointer.y < EDGE ? -SCROLL_STEP
+        : pointer.y > window.innerHeight - EDGE ? SCROLL_STEP
+        : 0;
+      if (!delta) return;
+      window.scrollBy(0, delta);
+      originY -= delta;
+      node.style.transform = `translateY(${pointer.y - originY}px)`;
+      swapIfNeeded();
+    }, 16);
+
+    const onMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      pointer = { x: moveEvent.clientX, y: moveEvent.clientY };
+      node.style.transform = `translateY(${pointer.y - originY}px)`;
+      swapIfNeeded();
+    };
+
+    const onEnd = () => {
+      clearInterval(autoScroll);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      node.style.transform = '';
+      node.classList.remove('dragging');
+      document.body.classList.remove('is-dragging');
+      rerender();
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
   });
+}
 
-  node.addEventListener('dragend', () => {
-    node.classList.remove('dragging');
-    dragSource = null;
-  });
-
-  node.addEventListener('dragover', (event) => {
-    if (!dragSource || dragSource.list !== getList()) return;
-    event.preventDefault();
-    node.classList.add('drop-target');
-  });
-
-  node.addEventListener('dragleave', () => node.classList.remove('drop-target'));
-
-  node.addEventListener('drop', (event) => {
-    node.classList.remove('drop-target');
-    if (!dragSource || dragSource.list !== getList()) return;
-    event.preventDefault();
-    move(getList(), dragSource.index, Number(node.dataset.index));
-    rerender();
+/** Renumérote les cartes après un déplacement fait directement dans le DOM. */
+function syncIndices(parent) {
+  Array.from(parent.children).forEach((child, index) => {
+    child.dataset.index = String(index);
+    const badge = child.querySelector('.rank-number');
+    if (badge) badge.textContent = String(index + 1);
   });
 }
 
