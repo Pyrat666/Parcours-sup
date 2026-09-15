@@ -1,27 +1,22 @@
 :root {
   --bg: #f6f7f9;
   --surface: #ffffff;
-  --surface-2: #f0f2f5;
   --border: #d9dde3;
   --text: #16191d;
   --muted: #5d6673;
   --accent: #1f5fd0;
   --accent-soft: #e8effb;
-  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 4px 12px rgba(16, 24, 40, .05);
-  --radius: 10px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14171c;
     --surface: #1c2027;
-    --surface-2: #242932;
     --border: #333a45;
     --text: #e8eaed;
     --muted: #9aa4b2;
     --accent: #6ea0ff;
     --accent-soft: #23304a;
-    --shadow: none;
   }
 }
 
@@ -29,207 +24,43 @@
 
 body {
   margin: 0;
+  padding: 10px 10px 28px;
   background: var(--bg);
   color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-h1, h2 { margin: 0; line-height: 1.25; }
-h1 { font-size: 1.15rem; }
-h2 { font-size: 1rem; }
-
-.hint { margin: 0 0 12px; color: var(--muted); font-size: .85rem; }
-
-/* ---------- top bar ---------- */
-
-.topbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-
-@media (max-width: 880px) {
-  .topbar { padding: 8px 10px; gap: 8px; }
-  .topbar h1 { font-size: 1rem; }
-  .breadcrumb { padding: 8px 10px; min-height: 0; }
-  .pane-head { margin-bottom: 4px; }
-  .hint { margin-bottom: 8px; }
-}
-
-select {
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-  font-size: .9rem;
-  min-width: 170px;
-}
-
-select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-
-button {
-  padding: 7px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  font-size: .88rem;
-  cursor: pointer;
-}
-
-button:hover { filter: brightness(1.06); }
-
-button.ghost {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--border);
-}
-
-button .short { display: none; }
-
-@media (max-width: 560px) {
-  button .full { display: none; }
-  button .short { display: inline; font-size: 1.15rem; line-height: 1; }
-  .card .actions button:not(.icon) { padding: 8px 12px; }
-}
-
-button.icon {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  min-width: 36px;
-  min-height: 36px;
-  padding: 2px 6px;
-  line-height: 1.4;
-  font-size: .9rem;
-}
-
-/* Les flèches restent pour le clavier et la souris, mais le geste principal
-   sur mobile est le glissement : on les efface de l'écran étroit. */
-@media (max-width: 560px) {
-  .card .actions button.icon { display: none; }
-}
-
-/* ---------- breadcrumb ---------- */
+/* ---------- fil d'Ariane ---------- */
 
 .breadcrumb {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  min-height: 42px;
+  margin-bottom: 10px;
 }
 
 .crumb {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
+  font: inherit;
   font-size: .82rem;
   cursor: pointer;
 }
 
 .crumb.current { background: var(--accent-soft); border-color: var(--accent); cursor: default; }
-.crumb .rank { font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+.crumb .rank { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .crumb-sep { color: var(--muted); }
 
-/* ---------- layout ---------- */
+/* ---------- cartes ---------- */
 
-main {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 16px;
-  padding: 16px;
-  align-items: start;
-}
-
-.deck-pane, .shortlist-pane {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  box-shadow: var(--shadow);
-}
-
-/* Sur écran étroit, le panneau ne fait que dupliquer le cadre de la page et
-   vole de la largeur aux cartes : on le laisse tomber et les cartes se posent
-   directement sur le fond. */
-@media (max-width: 880px) {
-  main {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 22px;
-    padding: 10px 10px 28px;
-  }
-
-  .deck-pane, .shortlist-pane {
-    background: none;
-    border: none;
-    border-radius: 0;
-    padding: 0;
-    box-shadow: none;
-  }
-}
-
-.pane-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.badge {
-  display: inline-block;
-  min-width: 22px;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: .78rem;
-  font-weight: 600;
-  text-align: center;
-}
-
-.status {
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  font-size: .85rem;
-  margin-bottom: 12px;
-}
-
-.status.error { border-color: #d4534d; color: #d4534d; }
-
-.field-pick {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
-  color: var(--text);
-  font-size: .8rem;
-}
-
-/* ---------- cards ---------- */
-
-.deck, .shortlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.deck { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 
 .card {
   display: grid;
@@ -238,31 +69,25 @@ main {
   align-items: center;
   padding: 6px 8px 6px 6px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: var(--surface);
-  transition: box-shadow .15s, transform .12s;
+  transition: box-shadow .15s;
 }
 
-.card:hover { border-color: var(--accent); }
-
-/* Carte saisie : soulevée, au-dessus des autres, et transportée par
-   `transform` pendant que le doigt bouge. */
+/* Carte saisie : soulevée et transportée par `transform` pendant le geste. */
 .card.dragging {
   position: relative;
   z-index: 5;
   border-color: var(--accent);
   box-shadow: 0 10px 24px rgba(16, 24, 40, .22);
-  transform-origin: center;
   transition: none;
 }
 
-/* Pendant un déplacement, rien d'autre ne doit être sélectionnable. */
 body.is-dragging { user-select: none; -webkit-user-select: none; }
-body.is-dragging .card:not(.dragging) { transition: transform .18s ease; }
 
-/* Poignée : cible tactile de 44px, `touch-action: none` pour que le geste
-   ne soit pas confisqué par le défilement de la page. */
-.card .drag-handle {
+/* Poignée : cible tactile de 44 px. `touch-action: none` empêche le
+   défilement de la page de confisquer le geste. */
+.drag-handle {
   display: grid;
   grid-template-rows: auto auto;
   justify-items: center;
@@ -278,35 +103,82 @@ body.is-dragging .card:not(.dragging) { transition: transform .18s ease; }
   -webkit-tap-highlight-color: transparent;
 }
 
-.card .drag-handle:active { cursor: grabbing; }
+.drag-handle:active { cursor: grabbing; }
 
-.card .rank-number {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-size: .95rem;
-  line-height: 1;
-}
+.rank-number { font-weight: 700; font-size: .95rem; line-height: 1; font-variant-numeric: tabular-nums; }
 
-/* Trois points en deux colonnes : le signe usuel d'un élément déplaçable. */
-.card .grip {
+/* Points de préhension : le signe usuel d'un élément déplaçable. */
+.grip {
   width: 10px;
   height: 7px;
   opacity: .55;
   background-image: radial-gradient(currentColor 42%, transparent 46%);
   background-size: 4px 3.5px;
-  background-repeat: repeat;
 }
 
-.card .label { font-weight: 600; font-size: .92rem; line-height: 1.3; overflow-wrap: anywhere; }
-.card .meta { color: var(--muted); font-size: .76rem; line-height: 1.3; overflow-wrap: anywhere; }
-.card .actions { display: flex; gap: 4px; align-items: center; }
+.label { font-weight: 600; font-size: .92rem; line-height: 1.3; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: .76rem; line-height: 1.3; overflow-wrap: anywhere; }
 
-.card a { color: var(--accent); }
+.open {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
 
-.shortlist .card { grid-template-columns: auto minmax(0, 1fr) auto; }
-.shortlist .priority { font-variant-numeric: tabular-nums; font-size: .78rem; color: var(--muted); }
+/* ---------- états ---------- */
+
+.status {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: .85rem;
+}
+
+.status.error { border-color: #d4534d; color: #d4534d; }
+
+.field-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--text);
+  font-size: .8rem;
+}
+
+select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .9rem;
+}
 
 .empty { color: var(--muted); font-size: .85rem; padding: 10px 0; }
 
 .more { margin-top: 12px; text-align: center; }
 
+.more button {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .88rem;
+  cursor: pointer;
+}

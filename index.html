@@ -3,35 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Parcoursup — exploration par priorisation</title>
+<title>Parcoursup — tri de cartes</title>
 <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
-<header class="topbar">
-  <h1>Explorer Parcoursup</h1>
-</header>
-
-<nav id="breadcrumb" class="breadcrumb" aria-label="Chemin de priorisation"></nav>
-
-<main>
-  <section class="deck-pane">
-    <div class="pane-head">
-      <h2 id="deck-title">Chargement…</h2>
-    </div>
-    <p id="deck-help" class="hint"></p>
-    <div id="status" class="status" hidden></div>
-    <ol id="deck" class="deck"></ol>
-    <div id="deck-more" class="more" hidden><button id="load-more" type="button">Charger la suite</button></div>
-  </section>
-
-  <aside class="shortlist-pane">
-    <div class="pane-head">
-      <h2>Ma liste <span id="shortlist-count" class="badge">0</span></h2>
-    </div>
-    <ol id="shortlist" class="shortlist"></ol>
-  </aside>
-</main>
-
+<nav id="breadcrumb" class="breadcrumb" aria-label="Chemin" hidden></nav>
+<div id="status" class="status" hidden></div>
+<ol id="deck" class="deck"></ol>
+<div id="deck-more" class="more" hidden><button id="load-more" type="button">Charger la suite</button></div>
 <script src="assets/app.js"></script>
 </body>
 </html>

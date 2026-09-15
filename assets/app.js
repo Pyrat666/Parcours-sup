@@ -6,8 +6,8 @@
 
 const DATASET = 'fr-esr-cartographie_formations_parcoursup';
 
-// Le même jeu de données est publié sur plusieurs portails ODS : si le
-// premier ne répond pas, on bascule sur le suivant.
+// Le jeu de données est publié sur plusieurs portails : si le premier ne
+// répond pas, on bascule sur le suivant.
 const ENDPOINTS = [
   'https://data.enseignementsup-recherche.gouv.fr/api/explore/v2.1',
   'https://data.education.gouv.fr/api/explore/v2.1',
@@ -27,10 +27,7 @@ async function apiGet(path, params) {
     }
     try {
       const response = await fetch(url, { headers: { Accept: 'application/json' } });
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status} — ${body.slice(0, 200)}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       endpoint = base;
       return await response.json();
     } catch (error) {
@@ -42,41 +39,19 @@ async function apiGet(path, params) {
 
 const quote = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
-/** Compte les enregistrements par valeur d'un champ : le matériau des cartes. */
-async function fetchGroups(field, where) {
-  const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
-    select: `${field} as valeur, count(*) as nb`,
-    group_by: field,
-    order_by: 'nb desc',
-    where,
-    limit: PAGE_SIZE,
-  });
-  return (data.results || [])
-    .filter((row) => row.valeur !== null && row.valeur !== '')
-    .map((row) => ({ value: row.valeur, count: row.nb }));
-}
-
-async function fetchRecords(where, offset) {
-  return apiGet(`/catalog/datasets/${DATASET}/records`, {
-    where,
-    limit: PAGE_SIZE,
-    offset: Math.min(offset, MAX_OFFSET),
-  });
-}
-
 /* ------------------------------------------------------------------ *
  * Détection des champs dans le schéma
+ *
+ * Les noms de colonnes du jeu de données sont courts et susceptibles de
+ * changer : ils sont résolus depuis le schéma renvoyé par l'API plutôt que
+ * codés en dur.
  * ------------------------------------------------------------------ */
 
-// Les noms de champs du jeu de données sont courts et peu explicites ; on les
-// résout à partir du schéma renvoyé par l'API plutôt que de les coder en dur,
-// et l'utilisateur peut corriger la détection depuis le panneau « Champs ».
 const HINTS = {
   niveau1:       { names: ['tf', 'type_formation', 'typeformation'], label: /type\s*d[e']?\s*formation/i },
   niveau2:       { names: ['fl', 'fil', 'filiere', 'sous_filiere'],  label: /fili[eè]re|sp[ée]cialit[ée]/i },
   etablissement: { names: ['nm', 'etablissement', 'nom_etablissement', 'lib_etab'], label: /[ée]tablissement/i },
   commune:       { names: ['nmc', 'commune', 'ville', 'nom_commune'], label: /commune|ville/i },
-  departement:   { names: ['dep', 'departement', 'dep_lib', 'nom_departement'], label: /d[ée]partement/i },
   fiche:         { names: ['url', 'url_fiche', 'lien', 'fiche'], label: /url|lien|fiche/i },
 };
 
@@ -92,45 +67,48 @@ function detectField(fields, hint) {
  * ------------------------------------------------------------------ */
 
 const state = {
-  fields: [],          // schéma du jeu de données
-  mapping: {},         // rôle -> nom de champ
-  levels: [],          // champs formant l'arborescence, du plus large au plus fin
-  path: [],            // { field, value, rank } — le chemin priorisé parcouru
-  cards: [],           // cartes du niveau courant
-  isLeaf: false,       // true quand on affiche des formations et non des groupes
+  fields: [],     // schéma du jeu de données
+  mapping: {},    // rôle -> nom de champ
+  levels: [],     // champs formant l'arborescence, du plus large au plus fin
+  path: [],       // { field, value, rank } — le chemin priorisé parcouru
+  cards: [],      // cartes du niveau courant
+  isLeaf: false,  // true quand on affiche des formations et non des groupes
   offset: 0,
   total: 0,
-  shortlist: [],
 };
 
 const el = (id) => document.getElementById(id);
 
-/* ------------------------------------------------------------------ *
- * Construction des requêtes
- * ------------------------------------------------------------------ */
-
-function buildWhere() {
-  return state.path.map((step) => `${step.field} = ${quote(step.value)}`).join(' and ');
-}
+const buildWhere = () =>
+  state.path.map((step) => `${step.field} = ${quote(step.value)}`).join(' and ');
 
 /* ------------------------------------------------------------------ *
  * Navigation
  * ------------------------------------------------------------------ */
 
 async function loadLevel() {
-  const depth = state.path.length;
-  const field = state.levels[depth];
+  const field = state.levels[state.path.length];
   state.isLeaf = !field;
   state.offset = 0;
 
-  setStatus('Chargement…');
   try {
     if (state.isLeaf) {
-      const data = await fetchRecords(buildWhere(), 0);
+      const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
+        where: buildWhere(), limit: PAGE_SIZE, offset: 0,
+      });
       state.total = data.total_count || 0;
       state.cards = (data.results || []).map(toFormationCard);
     } else {
-      state.cards = await fetchGroups(field, buildWhere());
+      const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
+        select: `${field} as valeur, count(*) as nb`,
+        group_by: field,
+        order_by: 'nb desc',
+        where: buildWhere(),
+        limit: PAGE_SIZE,
+      });
+      state.cards = (data.results || [])
+        .filter((row) => row.valeur !== null && row.valeur !== '')
+        .map((row) => ({ value: row.valeur }));
       state.total = state.cards.length;
     }
     setStatus(null);
@@ -142,10 +120,11 @@ async function loadLevel() {
 }
 
 async function loadMore() {
-  if (!state.isLeaf) return;
   state.offset += PAGE_SIZE;
   try {
-    const data = await fetchRecords(buildWhere(), state.offset);
+    const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
+      where: buildWhere(), limit: PAGE_SIZE, offset: Math.min(state.offset, MAX_OFFSET),
+    });
     state.cards = state.cards.concat((data.results || []).map(toFormationCard));
     render();
   } catch (error) {
@@ -154,25 +133,19 @@ async function loadMore() {
 }
 
 function toFormationCard(record) {
-  const { etablissement, commune, departement, niveau2, fiche } = state.mapping;
-  // Les valeurs déjà portées par le fil d'Ariane n'ont pas à être répétées sur la carte.
-  const inPath = new Set(state.path.map((step) => step.value));
-  const meta = [record[niveau2], record[commune], record[departement]]
-    .filter((value) => value && !inPath.has(value));
+  const { etablissement, commune, fiche } = state.mapping;
   const url = fiche && /^https?:\/\//.test(record[fiche] || '') ? record[fiche] : null;
   return {
-    value: record[etablissement] || record[niveau2] || 'Formation',
-    meta: meta.join(' · '),
+    value: record[etablissement] || 'Formation',
+    meta: record[commune] || '',
     url,
-    record,
   };
 }
 
 function descend(index) {
-  const card = state.cards[index];
   state.path.push({
     field: state.levels[state.path.length],
-    value: card.value,
+    value: state.cards[index].value,
     rank: index + 1,
   });
   loadLevel();
@@ -181,47 +154,6 @@ function descend(index) {
 function goTo(depth) {
   state.path = state.path.slice(0, depth);
   loadLevel();
-}
-
-/* ------------------------------------------------------------------ *
- * Priorisation
- * ------------------------------------------------------------------ */
-
-function move(list, from, to) {
-  if (to < 0 || to >= list.length || from === to) return;
-  const [item] = list.splice(from, 1);
-  list.splice(to, 0, item);
-}
-
-/** Chaîne de rangs « 1.3.2 » : la priorité donnée à chaque étage du parcours. */
-function priorityChain(rank) {
-  return state.path.map((step) => step.rank).concat(rank).join('.');
-}
-
-function compareChains(a, b) {
-  const left = a.split('.').map(Number);
-  const right = b.split('.').map(Number);
-  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
-    const diff = (left[i] ?? 0) - (right[i] ?? 0);
-    if (diff) return diff;
-  }
-  return 0;
-}
-
-function addToShortlist(index) {
-  const card = state.cards[index];
-  const chain = priorityChain(index + 1);
-  const label = card.value;
-  if (state.shortlist.some((item) => item.label === label && item.meta === card.meta)) return;
-  state.shortlist.push({
-    label,
-    meta: card.meta || '',
-    url: card.url || '',
-    path: state.path.map((step) => step.value).join(' › '),
-    chain,
-  });
-  state.shortlist.sort((a, b) => compareChains(a.chain, b.chain));
-  renderShortlist();
 }
 
 /* ------------------------------------------------------------------ *
@@ -235,24 +167,20 @@ function setStatus(message, isError) {
   node.classList.toggle('error', Boolean(isError));
 }
 
-function labelOf(fieldName) {
-  const field = state.fields.find((f) => f.name === fieldName);
-  return field ? (field.label || field.name) : fieldName;
-}
-
 function render() {
   renderBreadcrumb();
   renderDeck();
-  renderShortlist();
 }
 
 function renderBreadcrumb() {
   const bar = el('breadcrumb');
   bar.replaceChildren();
+  bar.hidden = !state.path.length;
+  if (bar.hidden) return;
 
   const root = document.createElement('button');
   root.type = 'button';
-  root.className = 'crumb' + (state.path.length ? '' : ' current');
+  root.className = 'crumb';
   root.textContent = 'Tout';
   root.addEventListener('click', () => goTo(0));
   bar.append(root);
@@ -265,8 +193,10 @@ function renderBreadcrumb() {
     const crumb = document.createElement('button');
     crumb.type = 'button';
     crumb.className = 'crumb' + (depth === state.path.length - 1 ? ' current' : '');
-    crumb.innerHTML = `<span class="rank">#${step.rank}</span>`;
-    crumb.append(document.createTextNode(step.value));
+    const rank = document.createElement('span');
+    rank.className = 'rank';
+    rank.textContent = `#${step.rank}`;
+    crumb.append(rank, document.createTextNode(step.value));
     crumb.addEventListener('click', () => goTo(depth + 1));
 
     bar.append(separator, crumb);
@@ -277,19 +207,10 @@ function renderDeck() {
   const deck = el('deck');
   deck.replaceChildren();
 
-  const depth = state.path.length;
-  if (state.isLeaf) {
-    el('deck-title').textContent = `Formations (${state.total})`;
-    el('deck-help').textContent = 'Classe, puis retiens celles qui t’intéressent.';
-  } else {
-    el('deck-title').textContent = labelOf(state.levels[depth]);
-    el('deck-help').textContent = 'Glisse les cartes par ordre de préférence, puis ouvre la première.';
-  }
-
   if (!state.cards.length) {
     const empty = document.createElement('li');
     empty.className = 'empty';
-    empty.textContent = 'Aucun résultat pour ce chemin.';
+    empty.textContent = 'Aucun résultat.';
     deck.append(empty);
   }
 
@@ -303,52 +224,50 @@ function buildCard(card, index) {
   item.className = 'card';
   item.dataset.index = String(index);
 
-  const rank = buildHandle(index);
-
   const body = document.createElement('div');
   const label = document.createElement('div');
   label.className = 'label';
   label.textContent = card.value;
   body.append(label);
 
-  const metaText = state.isLeaf ? card.meta : `${card.count} formation${card.count > 1 ? 's' : ''}`;
-  if (metaText) {
+  if (card.meta) {
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = metaText;
-    if (card.url) {
-      meta.append(' · ');
-      const link = document.createElement('a');
-      link.href = card.url;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.textContent = 'fiche';
-      meta.append(link);
-    }
+    meta.textContent = card.meta;
     body.append(meta);
   }
 
-  const actions = document.createElement('div');
-  actions.className = 'actions';
-  actions.append(
-    iconButton('↑', 'Monter', () => reorder(index, index - 1)),
-    iconButton('↓', 'Descendre', () => reorder(index, index + 1)),
-  );
+  item.append(buildHandle(index), body);
 
-  const action = state.isLeaf
-    ? actionButton('Retenir', '＋', () => addToShortlist(index))
-    : actionButton('Ouvrir', '›', () => descend(index));
-  actions.append(action);
+  // Une carte de groupe s'ouvre sur le niveau suivant ; une formation renvoie
+  // vers sa fiche quand le jeu de données en fournit une.
+  if (!state.isLeaf) {
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'open';
+    open.setAttribute('aria-label', `Ouvrir ${card.value}`);
+    open.textContent = '›';
+    open.addEventListener('click', () => descend(index));
+    item.append(open);
+  } else if (card.url) {
+    const open = document.createElement('a');
+    open.className = 'open';
+    open.href = card.url;
+    open.target = '_blank';
+    open.rel = 'noopener';
+    open.setAttribute('aria-label', `Fiche de ${card.value}`);
+    open.textContent = '↗';
+    item.append(open);
+  }
 
-  item.append(rank, body, actions);
-  attachDrag(item, () => state.cards, renderDeck);
+  attachDrag(item);
   return item;
 }
 
 /** Poignée de glissement : cible tactile large portant aussi le rang. */
 function buildHandle(index) {
   const handle = document.createElement('div');
-  handle.className = 'rank drag-handle';
+  handle.className = 'drag-handle';
   handle.setAttribute('role', 'button');
   handle.setAttribute('aria-label', `Déplacer — position ${index + 1}`);
 
@@ -364,108 +283,29 @@ function buildHandle(index) {
   return handle;
 }
 
-/** Bouton d'action d'une carte : texte sur grand écran, chevron sur mobile. */
-function actionButton(label, glyph, onClick) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.setAttribute('aria-label', label);
-
-  const full = document.createElement('span');
-  full.className = 'full';
-  full.textContent = label;
-
-  const short = document.createElement('span');
-  short.className = 'short';
-  short.setAttribute('aria-hidden', 'true');
-  short.textContent = glyph;
-
-  button.append(full, short);
-  button.addEventListener('click', onClick);
-  return button;
-}
-
-function iconButton(glyph, title, onClick) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'icon';
-  button.title = title;
-  button.setAttribute('aria-label', title);
-  button.textContent = glyph;
-  button.addEventListener('click', onClick);
-  return button;
-}
-
-function reorder(from, to) {
-  move(state.cards, from, to);
-  renderDeck();
-}
-
-function renderShortlist() {
-  const list = el('shortlist');
-  list.replaceChildren();
-  el('shortlist-count').textContent = String(state.shortlist.length);
-
-  if (!state.shortlist.length) {
-    const empty = document.createElement('li');
-    empty.className = 'empty';
-    empty.textContent = 'Rien retenu pour l’instant.';
-    list.append(empty);
-    return;
-  }
-
-  state.shortlist.forEach((item, index) => {
-    const node = document.createElement('li');
-    node.className = 'card';
-    node.dataset.index = String(index);
-
-    const rank = buildHandle(index);
-
-    const body = document.createElement('div');
-    const label = document.createElement('div');
-    label.className = 'label';
-    label.textContent = item.label;
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = [item.path, item.meta].filter(Boolean).join(' · ');
-    const priority = document.createElement('div');
-    priority.className = 'priority';
-    priority.textContent = `priorité ${item.chain}`;
-    body.append(label, meta, priority);
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    actions.append(iconButton('✕', 'Retirer', () => {
-      state.shortlist.splice(index, 1);
-      renderShortlist();
-    }));
-
-    node.append(rank, body, actions);
-    attachDrag(node, () => state.shortlist, renderShortlist);
-    list.append(node);
-  });
-}
-
 /* ------------------------------------------------------------------ *
  * Glisser-déposer
  *
  * L'API drag-and-drop HTML5 est inopérante sur écran tactile : tout passe
- * donc par les Pointer Events, identiques au doigt et à la souris. La poignée
- * porte `touch-action: none` pour que le geste ne soit pas capté par le
- * défilement de la page.
+ * par les Pointer Events, identiques au doigt et à la souris.
  * ------------------------------------------------------------------ */
 
 const EDGE = 90;        // zone haute/basse déclenchant le défilement automatique
 const SCROLL_STEP = 12;
 
-function attachDrag(node, getList, rerender) {
+function move(list, from, to) {
+  if (to < 0 || to >= list.length || from === to) return;
+  const [item] = list.splice(from, 1);
+  list.splice(to, 0, item);
+}
+
+function attachDrag(node) {
   const handle = node.querySelector('.drag-handle');
-  if (!handle) return;
 
   handle.addEventListener('pointerdown', (event) => {
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
 
-    const list = getList();
     const parent = node.parentElement;
     // La capture garde le geste attaché à la poignée même si le doigt sort de
     // la carte ; elle n'est pas indispensable, d'où le filet de sécurité.
@@ -487,7 +327,7 @@ function attachDrag(node, getList, rerender) {
 
       const from = Number(node.dataset.index);
       const to = Number(target.dataset.index);
-      move(list, from, to);
+      move(state.cards, from, to);
       parent.insertBefore(node, to > from ? target.nextSibling : target);
       syncIndices(parent);
 
@@ -522,7 +362,7 @@ function attachDrag(node, getList, rerender) {
       node.style.transform = '';
       node.classList.remove('dragging');
       document.body.classList.remove('is-dragging');
-      rerender();
+      renderDeck();
     };
 
     window.addEventListener('pointermove', onMove);
@@ -543,17 +383,15 @@ function syncIndices(parent) {
 /* ------------------------------------------------------------------ *
  * Choix de secours des niveaux
  *
- * Les noms de champs du jeu de données sont courts et susceptibles de changer.
- * Si la détection automatique échoue, on demande à l'utilisateur de désigner
- * les deux niveaux ; sinon cette interface n'apparaît jamais.
+ * N'apparaît que si la détection automatique dans le schéma échoue.
  * ------------------------------------------------------------------ */
 
 function renderFieldFallback() {
   const box = el('status');
-  const pick = (role, label) => {
+  ['niveau1', 'niveau2'].forEach((role, position) => {
     const wrapper = document.createElement('label');
     wrapper.className = 'field-pick';
-    wrapper.textContent = label;
+    wrapper.textContent = `Niveau ${position + 1}`;
 
     const select = document.createElement('select');
     select.append(new Option('— aucun —', ''));
@@ -571,10 +409,8 @@ function renderFieldFallback() {
     });
 
     wrapper.append(select);
-    return wrapper;
-  };
-
-  box.append(pick('niveau1', 'Niveau 1'), pick('niveau2', 'Niveau 2'));
+    box.append(wrapper);
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -582,15 +418,13 @@ function renderFieldFallback() {
  * ------------------------------------------------------------------ */
 
 async function start() {
-  setStatus('Lecture du schéma du jeu de données…');
   let metadata;
   try {
     metadata = await apiGet(`/catalog/datasets/${DATASET}`, {});
   } catch (error) {
     setStatus(
       `Impossible de lire le schéma (${error.message}). ` +
-      'Si tu ouvres la page en file://, sers-la plutôt en HTTP local : les requêtes ' +
-      'vers l’API sont bloquées par la politique CORS du navigateur sur file://.',
+      'Ouverte en file://, la page ne peut pas appeler l’API : sers-la en HTTP.',
       true,
     );
     return;
@@ -598,7 +432,7 @@ async function start() {
 
   state.fields = metadata.fields || metadata.dataset?.fields || [];
   if (!state.fields.length) {
-    setStatus('Le schéma est vide : le jeu de données a peut-être changé d’identifiant.', true);
+    setStatus('Schéma vide : le jeu de données a peut-être changé d’identifiant.', true);
     return;
   }
 
