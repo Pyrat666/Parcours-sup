@@ -30,15 +30,86 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-/* ---------- fil d'Ariane ---------- */
+/* ---------- barre haute ---------- */
+
+.bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 
 .breadcrumb {
   display: flex;
+  flex: 1;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-bottom: 10px;
+  min-height: 34px;
 }
+
+.settings-toggle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-toggle[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+/* ---------- réglages ---------- */
+
+.settings {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.settings-hint { margin: 0 0 10px; color: var(--muted); font-size: .8rem; }
+
+.apply {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: .9rem;
+  cursor: pointer;
+}
+
+.toggle {
+  min-width: 74px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: .78rem;
+  cursor: pointer;
+}
+
+.toggle[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Un niveau désactivé reste visible mais en retrait. */
+.card.off .label, .card.off .meta { opacity: .45; }
 
 .crumb {
   display: inline-flex;

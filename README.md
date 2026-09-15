@@ -4,6 +4,10 @@ Page unique qui affiche les formations du catalogue Parcoursup sous forme de car
 classe par ordre de préférence, avant d'entrer dans celle placée en tête et de recommencer au
 niveau suivant.
 
+L'arborescence par défaut est `fl` → `tf` → `nmc` → `nm` → `amg`. Le bouton de réglage permet
+de la réordonner — au même geste de tri de cartes — et de désactiver les niveaux dont on ne
+veut pas ; les niveaux ignorés disparaissent du parcours.
+
 ## Données
 
 Jeu de données `fr-esr-cartographie_formations_parcoursup` (ministère de l'Enseignement
@@ -34,3 +38,7 @@ Aucune dépendance, aucune étape de build.
   seulement dans ce cas, la page demande de désigner les deux niveaux.
 - L'API plafonne `limit` à 100 et `limit + offset` à 10 000, d'où le chargement par pages au
   dernier niveau.
+- `?schema` affiche le dictionnaire des champs du jeu de données (nom, type, libellé), dont
+  les noms de colonnes sont trop courts pour être devinés.
+- L'ordre des niveaux n'est pas conservé d'une visite à l'autre : il repart de la valeur par
+  défaut à chaque chargement de la page.

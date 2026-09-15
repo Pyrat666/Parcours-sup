@@ -40,54 +40,47 @@ async function apiGet(path, params) {
 const quote = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
 /* ------------------------------------------------------------------ *
- * Détection des champs dans le schéma
- *
- * Les noms de colonnes du jeu de données sont courts et susceptibles de
- * changer : ils sont résolus depuis le schéma renvoyé par l'API plutôt que
- * codés en dur.
+ * Arborescence
  * ------------------------------------------------------------------ */
 
-const HINTS = {
-  niveau1:       { names: ['tf', 'type_formation', 'typeformation'], label: /type\s*d[e']?\s*formation/i },
-  niveau2:       { names: ['fl', 'fil', 'filiere', 'sous_filiere'],  label: /fili[eè]re|sp[ée]cialit[ée]/i },
-  etablissement: { names: ['nm', 'etablissement', 'nom_etablissement', 'lib_etab'], label: /[ée]tablissement/i },
-  commune:       { names: ['nmc', 'commune', 'ville', 'nom_commune'], label: /commune|ville/i },
-  fiche:         { names: ['url', 'url_fiche', 'lien', 'fiche'], label: /url|lien|fiche/i },
-};
+// Ordre par défaut des niveaux. Les champs absents du schéma sont écartés au
+// démarrage, ce qui laisse l'application fonctionnelle si le jeu de données
+// change de colonnes.
+const DEFAULT_LEVELS = ['fl', 'tf', 'nmc', 'nm', 'amg'];
 
-function detectField(fields, hint) {
-  const byName = fields.find((f) => hint.names.includes(f.name.toLowerCase()));
-  if (byName) return byName.name;
-  const byLabel = fields.find((f) => hint.label.test(f.label || '') || hint.label.test(f.name));
-  return byLabel ? byLabel.name : null;
-}
-
-/* ------------------------------------------------------------------ *
- * État
- * ------------------------------------------------------------------ */
+// Champs servant à décrire une formation au dernier niveau.
+const RECORD_FIELDS = { titre: 'nm', lieu: 'nmc' };
 
 const state = {
-  fields: [],     // schéma du jeu de données
-  mapping: {},    // rôle -> nom de champ
-  levels: [],     // champs formant l'arborescence, du plus large au plus fin
-  path: [],       // { field, value, rank } — le chemin priorisé parcouru
-  cards: [],      // cartes du niveau courant
-  isLeaf: false,  // true quand on affiche des formations et non des groupes
+  fields: [],      // schéma du jeu de données
+  levelOrder: [],  // { field, enabled } — l'arborescence, ordonnable
+  fiche: null,     // champ portant l'URL de la fiche, s'il existe
+  path: [],        // { field, value, rank } — le chemin priorisé parcouru
+  cards: [],       // cartes du niveau courant
+  isLeaf: false,   // true quand on affiche des formations et non des groupes
   offset: 0,
   total: 0,
 };
 
 const el = (id) => document.getElementById(id);
 
+const activeLevels = () => state.levelOrder.filter((level) => level.enabled).map((level) => level.field);
+
 const buildWhere = () =>
   state.path.map((step) => `${step.field} = ${quote(step.value)}`).join(' and ');
+
+function labelOf(fieldName) {
+  const field = state.fields.find((item) => item.name === fieldName);
+  return field ? (field.label || field.name) : fieldName;
+}
 
 /* ------------------------------------------------------------------ *
  * Navigation
  * ------------------------------------------------------------------ */
 
 async function loadLevel() {
-  const field = state.levels[state.path.length];
+  const levels = activeLevels();
+  const field = levels[state.path.length];
   state.isLeaf = !field;
   state.offset = 0;
 
@@ -133,18 +126,19 @@ async function loadMore() {
 }
 
 function toFormationCard(record) {
-  const { etablissement, commune, fiche } = state.mapping;
-  const url = fiche && /^https?:\/\//.test(record[fiche] || '') ? record[fiche] : null;
+  // Ce que le chemin porte déjà n'a pas à être répété sur la carte.
+  const seen = new Set(state.path.map((step) => step.value));
+  const lieu = record[RECORD_FIELDS.lieu];
   return {
-    value: record[etablissement] || 'Formation',
-    meta: record[commune] || '',
-    url,
+    value: record[RECORD_FIELDS.titre] || 'Formation',
+    meta: lieu && !seen.has(lieu) ? lieu : '',
+    url: state.fiche && /^https?:\/\//.test(record[state.fiche] || '') ? record[state.fiche] : null,
   };
 }
 
 function descend(index) {
   state.path.push({
-    field: state.levels[state.path.length],
+    field: activeLevels()[state.path.length],
     value: state.cards[index].value,
     rank: index + 1,
   });
@@ -175,8 +169,7 @@ function render() {
 function renderBreadcrumb() {
   const bar = el('breadcrumb');
   bar.replaceChildren();
-  bar.hidden = !state.path.length;
-  if (bar.hidden) return;
+  if (!state.path.length) return;
 
   const root = document.createElement('button');
   root.type = 'button';
@@ -215,7 +208,6 @@ function renderDeck() {
   }
 
   state.cards.forEach((card, index) => deck.append(buildCard(card, index)));
-
   el('deck-more').hidden = !(state.isLeaf && state.cards.length < state.total && state.offset < MAX_OFFSET);
 }
 
@@ -239,8 +231,8 @@ function buildCard(card, index) {
 
   item.append(buildHandle(index), body);
 
-  // Une carte de groupe s'ouvre sur le niveau suivant ; une formation renvoie
-  // vers sa fiche quand le jeu de données en fournit une.
+  // Une carte de groupe ouvre le niveau suivant ; une formation renvoie vers
+  // sa fiche quand le jeu de données en fournit une.
   if (!state.isLeaf) {
     const open = document.createElement('button');
     open.type = 'button';
@@ -260,7 +252,7 @@ function buildCard(card, index) {
     item.append(open);
   }
 
-  attachDrag(item);
+  attachDrag(item, () => state.cards, renderDeck);
   return item;
 }
 
@@ -284,6 +276,51 @@ function buildHandle(index) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Réglages : l'arborescence se classe avec le même geste que les cartes
+ * ------------------------------------------------------------------ */
+
+function renderSettings() {
+  const list = el('levels');
+  list.replaceChildren();
+
+  state.levelOrder.forEach((level, index) => {
+    const item = document.createElement('li');
+    item.className = 'card' + (level.enabled ? '' : ' off');
+    item.dataset.index = String(index);
+
+    const body = document.createElement('div');
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = labelOf(level.field);
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = level.field;
+    body.append(label, meta);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'toggle';
+    toggle.setAttribute('aria-pressed', String(level.enabled));
+    toggle.textContent = level.enabled ? 'Actif' : 'Ignoré';
+    toggle.addEventListener('click', () => {
+      level.enabled = !level.enabled;
+      renderSettings();
+    });
+
+    item.append(buildHandle(index), body, toggle);
+    attachDrag(item, () => state.levelOrder, renderSettings);
+    list.append(item);
+  });
+}
+
+function toggleSettings(open) {
+  const panel = el('settings');
+  panel.hidden = !open;
+  el('settings-toggle').setAttribute('aria-expanded', String(open));
+  if (open) renderSettings();
+}
+
+/* ------------------------------------------------------------------ *
  * Glisser-déposer
  *
  * L'API drag-and-drop HTML5 est inopérante sur écran tactile : tout passe
@@ -299,13 +336,14 @@ function move(list, from, to) {
   list.splice(to, 0, item);
 }
 
-function attachDrag(node) {
+function attachDrag(node, getList, rerender) {
   const handle = node.querySelector('.drag-handle');
 
   handle.addEventListener('pointerdown', (event) => {
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
 
+    const list = getList();
     const parent = node.parentElement;
     // La capture garde le geste attaché à la poignée même si le doigt sort de
     // la carte ; elle n'est pas indispensable, d'où le filet de sécurité.
@@ -327,7 +365,7 @@ function attachDrag(node) {
 
       const from = Number(node.dataset.index);
       const to = Number(target.dataset.index);
-      move(state.cards, from, to);
+      move(list, from, to);
       parent.insertBefore(node, to > from ? target.nextSibling : target);
       syncIndices(parent);
 
@@ -362,7 +400,7 @@ function attachDrag(node) {
       node.style.transform = '';
       node.classList.remove('dragging');
       document.body.classList.remove('is-dragging');
-      renderDeck();
+      rerender();
     };
 
     window.addEventListener('pointermove', onMove);
@@ -377,39 +415,6 @@ function syncIndices(parent) {
     child.dataset.index = String(index);
     const badge = child.querySelector('.rank-number');
     if (badge) badge.textContent = String(index + 1);
-  });
-}
-
-/* ------------------------------------------------------------------ *
- * Choix de secours des niveaux
- *
- * N'apparaît que si la détection automatique dans le schéma échoue.
- * ------------------------------------------------------------------ */
-
-function renderFieldFallback() {
-  const box = el('status');
-  ['niveau1', 'niveau2'].forEach((role, position) => {
-    const wrapper = document.createElement('label');
-    wrapper.className = 'field-pick';
-    wrapper.textContent = `Niveau ${position + 1}`;
-
-    const select = document.createElement('select');
-    select.append(new Option('— aucun —', ''));
-    state.fields.forEach((field) => {
-      select.append(new Option(`${field.label || field.name} (${field.name})`, field.name));
-    });
-    select.value = state.mapping[role] || '';
-    select.addEventListener('change', () => {
-      state.mapping[role] = select.value || null;
-      state.levels = [state.mapping.niveau1, state.mapping.niveau2].filter(Boolean);
-      if (state.levels.length) {
-        state.path = [];
-        loadLevel();
-      }
-    });
-
-    wrapper.append(select);
-    box.append(wrapper);
   });
 }
 
@@ -463,26 +468,37 @@ async function start() {
     return;
   }
 
-  // Diagnostic : ?schema affiche le dictionnaire des champs du jeu de données,
-  // dont les noms sont trop courts pour être devinés.
   if (new URLSearchParams(location.search).has('schema')) {
     renderSchema();
     return;
   }
 
-  for (const [role, hint] of Object.entries(HINTS)) {
-    state.mapping[role] = detectField(state.fields, hint);
-  }
-  state.levels = [state.mapping.niveau1, state.mapping.niveau2].filter(Boolean);
+  const present = new Set(state.fields.map((field) => field.name));
+  state.levelOrder = DEFAULT_LEVELS
+    .filter((field) => present.has(field))
+    .map((field) => ({ field, enabled: true }));
 
-  if (!state.levels.length) {
-    setStatus('Niveaux non reconnus dans le jeu de données. Choisis-les :', true);
-    renderFieldFallback();
+  state.fiche = state.fields
+    .map((field) => field.name)
+    .find((name) => /url|lien|fiche/i.test(name)) || null;
+
+  if (!state.levelOrder.length) {
+    setStatus('Aucun des champs attendus n’est présent dans le jeu de données.', true);
     return;
   }
 
   await loadLevel();
 }
+
+el('settings-toggle').addEventListener('click', () => {
+  toggleSettings(el('settings').hidden);
+});
+
+el('settings-apply').addEventListener('click', () => {
+  toggleSettings(false);
+  state.path = [];
+  loadLevel();
+});
 
 el('load-more').addEventListener('click', loadMore);
 
