@@ -414,6 +414,33 @@ function renderFieldFallback() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Dictionnaire des champs (?schema)
+ * ------------------------------------------------------------------ */
+
+function renderSchema() {
+  const deck = el('deck');
+  deck.replaceChildren();
+
+  state.fields.forEach((field) => {
+    const item = document.createElement('li');
+    item.className = 'card schema-row';
+
+    const body = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'label';
+    name.textContent = `${field.name} — ${field.type}`;
+
+    const label = document.createElement('div');
+    label.className = 'meta';
+    label.textContent = [field.label, field.description].filter(Boolean).join(' · ') || '(sans libellé)';
+
+    body.append(name, label);
+    item.append(body);
+    deck.append(item);
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Démarrage
  * ------------------------------------------------------------------ */
 
@@ -433,6 +460,13 @@ async function start() {
   state.fields = metadata.fields || metadata.dataset?.fields || [];
   if (!state.fields.length) {
     setStatus('Schéma vide : le jeu de données a peut-être changé d’identifiant.', true);
+    return;
+  }
+
+  // Diagnostic : ?schema affiche le dictionnaire des champs du jeu de données,
+  // dont les noms sont trop courts pour être devinés.
+  if (new URLSearchParams(location.search).has('schema')) {
+    renderSchema();
     return;
   }
 

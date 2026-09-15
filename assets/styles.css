@@ -182,3 +182,6 @@ select {
   font-size: .88rem;
   cursor: pointer;
 }
+
+/* Le dictionnaire des champs n'a ni poignée ni bouton : une seule colonne. */
+.card.schema-row { grid-template-columns: minmax(0, 1fr); padding: 8px 10px; }
