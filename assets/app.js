@@ -101,7 +101,6 @@ const state = {
   offset: 0,
   total: 0,
   shortlist: [],
-  query: '',
 };
 
 const el = (id) => document.getElementById(id);
@@ -111,17 +110,7 @@ const el = (id) => document.getElementById(id);
  * ------------------------------------------------------------------ */
 
 function buildWhere() {
-  const clauses = state.path.map((step) => `${step.field} = ${quote(step.value)}`);
-
-  const term = state.query.trim();
-  if (term) {
-    const searchable = [state.mapping.etablissement, state.mapping.commune, state.mapping.departement]
-      .filter(Boolean)
-      .map((field) => `search(${field}, ${quote(term)})`);
-    if (searchable.length) clauses.push(`(${searchable.join(' or ')})`);
-  }
-
-  return clauses.join(' and ');
+  return state.path.map((step) => `${step.field} = ${quote(step.value)}`).join(' and ');
 }
 
 /* ------------------------------------------------------------------ *
@@ -552,67 +541,40 @@ function syncIndices(parent) {
 }
 
 /* ------------------------------------------------------------------ *
- * Export
+ * Choix de secours des niveaux
+ *
+ * Les noms de champs du jeu de données sont courts et susceptibles de changer.
+ * Si la détection automatique échoue, on demande à l'utilisateur de désigner
+ * les deux niveaux ; sinon cette interface n'apparaît jamais.
  * ------------------------------------------------------------------ */
 
-function exportCsv() {
-  if (!state.shortlist.length) return;
-  const escape = (value) => `"${String(value).replace(/"/g, '""')}"`;
-  const rows = [['rang', 'priorite', 'formation', 'chemin', 'details', 'fiche']];
-  state.shortlist.forEach((item, index) => {
-    rows.push([index + 1, item.chain, item.label, item.path, item.meta, item.url].map(escape));
-  });
+function renderFieldFallback() {
+  const box = el('status');
+  const pick = (role, label) => {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'field-pick';
+    wrapper.textContent = label;
 
-  const blob = new Blob(['﻿' + rows.map((row) => row.join(';')).join('\n')], {
-    type: 'text/csv;charset=utf-8',
-  });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = 'mes-voeux-parcoursup.csv';
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
-
-/* ------------------------------------------------------------------ *
- * Panneau de configuration des champs
- * ------------------------------------------------------------------ */
-
-const CONFIG_CONTROLS = {
-  'cfg-l1': 'niveau1',
-  'cfg-l2': 'niveau2',
-  'cfg-etab': 'etablissement',
-  'cfg-commune': 'commune',
-};
-
-function renderConfig() {
-  for (const [id, role] of Object.entries(CONFIG_CONTROLS)) {
-    const select = el(id);
-    select.replaceChildren();
-
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = '— aucun —';
-    select.append(none);
-
+    const select = document.createElement('select');
+    select.append(new Option('— aucun —', ''));
     state.fields.forEach((field) => {
-      const option = document.createElement('option');
-      option.value = field.name;
-      option.textContent = `${field.label || field.name} (${field.name})`;
-      option.selected = state.mapping[role] === field.name;
-      select.append(option);
+      select.append(new Option(`${field.label || field.name} (${field.name})`, field.name));
+    });
+    select.value = state.mapping[role] || '';
+    select.addEventListener('change', () => {
+      state.mapping[role] = select.value || null;
+      state.levels = [state.mapping.niveau1, state.mapping.niveau2].filter(Boolean);
+      if (state.levels.length) {
+        state.path = [];
+        loadLevel();
+      }
     });
 
-    select.onchange = () => {
-      state.mapping[role] = select.value || null;
-      rebuildLevels();
-      state.path = [];
-      loadLevel();
-    };
-  }
-}
+    wrapper.append(select);
+    return wrapper;
+  };
 
-function rebuildLevels() {
-  state.levels = [state.mapping.niveau1, state.mapping.niveau2].filter(Boolean);
+  box.append(pick('niveau1', 'Niveau 1'), pick('niveau2', 'Niveau 2'));
 }
 
 /* ------------------------------------------------------------------ *
@@ -643,47 +605,17 @@ async function start() {
   for (const [role, hint] of Object.entries(HINTS)) {
     state.mapping[role] = detectField(state.fields, hint);
   }
-  rebuildLevels();
-  renderConfig();
+  state.levels = [state.mapping.niveau1, state.mapping.niveau2].filter(Boolean);
 
   if (!state.levels.length) {
-    setStatus(
-      'Aucun niveau d’arborescence détecté automatiquement. ' +
-      'Ouvre le panneau « Champs » pour les choisir.',
-      true,
-    );
-    el('config').hidden = false;
-    el('toggle-config').setAttribute('aria-expanded', 'true');
+    setStatus('Niveaux non reconnus dans le jeu de données. Choisis-les :', true);
+    renderFieldFallback();
     return;
   }
 
   await loadLevel();
 }
 
-el('reset').addEventListener('click', () => {
-  state.path = [];
-  state.query = '';
-  el('search').value = '';
-  loadLevel();
-});
-
-el('toggle-config').addEventListener('click', () => {
-  const panel = el('config');
-  panel.hidden = !panel.hidden;
-  el('toggle-config').setAttribute('aria-expanded', String(!panel.hidden));
-});
-
 el('load-more').addEventListener('click', loadMore);
-el('export').addEventListener('click', exportCsv);
-
-let searchTimer;
-el('search').addEventListener('input', (event) => {
-  clearTimeout(searchTimer);
-  const value = event.target.value;
-  searchTimer = setTimeout(() => {
-    state.query = value;
-    loadLevel();
-  }, 350);
-});
 
 start();

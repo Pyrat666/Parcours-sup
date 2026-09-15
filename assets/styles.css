@@ -53,23 +53,15 @@ h2 { font-size: 1rem; }
   border-bottom: 1px solid var(--border);
 }
 
-.brand .sub { margin: 2px 0 0; color: var(--muted); font-size: .8rem; }
-
-.tools { display: flex; gap: 8px; flex-wrap: wrap; }
-
 @media (max-width: 880px) {
   .topbar { padding: 8px 10px; gap: 8px; }
-  .brand h1 { font-size: 1rem; }
-  .brand .sub { display: none; }
-  .tools { flex: 1 1 100%; flex-wrap: nowrap; }
-  .tools input[type="search"] { flex: 1 1 auto; min-width: 0; }
-  .tools button { flex: 0 0 auto; }
+  .topbar h1 { font-size: 1rem; }
   .breadcrumb { padding: 8px 10px; min-height: 0; }
   .pane-head { margin-bottom: 4px; }
   .hint { margin-bottom: 8px; }
 }
 
-input[type="search"], select {
+select {
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -80,7 +72,7 @@ input[type="search"], select {
   min-width: 170px;
 }
 
-input[type="search"]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 button {
   padding: 7px 12px;
@@ -124,28 +116,6 @@ button.icon {
    sur mobile est le glissement : on les efface de l'écran étroit. */
 @media (max-width: 560px) {
   .card .actions button.icon { display: none; }
-}
-
-/* ---------- config ---------- */
-
-.config {
-  padding: 14px 20px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-}
-
-.config-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
-}
-
-.config-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: .8rem;
-  color: var(--muted);
 }
 
 /* ---------- breadcrumb ---------- */
@@ -248,6 +218,15 @@ main {
 
 .status.error { border-color: #d4534d; color: #d4534d; }
 
+.field-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  color: var(--text);
+  font-size: .8rem;
+}
+
 /* ---------- cards ---------- */
 
 .deck, .shortlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -331,11 +310,3 @@ body.is-dragging .card:not(.dragging) { transition: transform .18s ease; }
 
 .more { margin-top: 12px; text-align: center; }
 
-.footer {
-  padding: 18px 20px 30px;
-  color: var(--muted);
-  font-size: .8rem;
-  border-top: 1px solid var(--border);
-}
-
-.footer code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }

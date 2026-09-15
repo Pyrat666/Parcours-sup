@@ -2,8 +2,7 @@
 
 Outil web statique pour explorer le **catalogue des formations Parcoursup**, non pas par
 cases à cocher mais par **tri de cartes** : à chaque étage de l'arborescence, on classe les
-groupes par ordre de préférence, puis on entre dans celui qu'on a mis en tête. Le chemin
-parcouru produit une liste de vœux ordonnée, exportable en CSV.
+groupes par ordre de préférence, puis on entre dans celui qu'on a mis en tête.
 
 ## Données
 
@@ -25,6 +24,9 @@ Trois appels seulement :
 | Cartes d'un niveau | `GET /catalog/datasets/{id}/records?select=<champ> as valeur, count(*) as nb&group_by=<champ>&where=…` |
 | Formations d'une branche | `GET /catalog/datasets/{id}/records?where=…&limit=100&offset=…` |
 
+L'interface se limite au tri de cartes et à la descente dans l'arborescence : ni filtre, ni
+recherche, ni export.
+
 ## Lancer
 
 Le navigateur refuse les requêtes cross-origin depuis `file://` : il faut servir les
@@ -41,8 +43,8 @@ Aucune dépendance, aucune étape de build.
 
 - **Niveaux détectés depuis le schéma.** Les noms de champs du jeu de données sont courts
   (`tf`, `fl`, `nm`, `nmc`…) et peuvent changer ; l'application lit le schéma au démarrage
-  et résout les champs par nom puis par libellé. Le panneau **Champs** permet de corriger
-  la détection ou de choisir d'autres axes d'arborescence.
+  et résout les champs par nom puis par libellé. Si la détection échoue, et seulement dans
+  ce cas, l'interface demande de désigner les deux niveaux.
 - **Priorisation.** Glisser-déposer, ou les boutons ↑/↓. Le rang de chaque étage est
   conservé dans le fil d'Ariane et forme la priorité finale d'un vœu (`1.3.2` = 1ʳᵉ branche,
   3ᵉ sous-branche, 2ᵉ formation).
