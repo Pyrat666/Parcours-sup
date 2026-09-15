@@ -60,6 +60,7 @@ const state = {
   isLeaf: false,   // true quand on affiche des formations et non des groupes
   offset: 0,
   total: 0,
+  partial: false,
 };
 
 const el = (id) => document.getElementById(id);
@@ -92,24 +93,73 @@ async function loadLevel() {
       state.total = data.total_count || 0;
       state.cards = (data.results || []).map(toFormationCard);
     } else {
-      const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
-        select: `${field} as valeur, count(*) as nb`,
-        group_by: field,
-        order_by: 'nb desc',
-        where: buildWhere(),
-        limit: PAGE_SIZE,
-      });
-      state.cards = (data.results || [])
-        .filter((row) => row.valeur !== null && row.valeur !== '')
-        .map((row) => ({ value: row.valeur }));
+      state.cards = await fetchGroups(field, buildWhere());
       state.total = state.cards.length;
     }
-    setStatus(null);
+    setStatus(state.partial ? 'Liste partielle : regroupement local des cent premières formations.' : null);
   } catch (error) {
     state.cards = [];
-    setStatus(`Impossible de joindre l'API : ${error.message}`, true);
+    setStatus(`Impossible de joindre l'API. ${error.message}`, true);
   }
   render();
+}
+
+/**
+ * Valeurs distinctes d'un champ, par ordre de fréquence.
+ *
+ * L'agrégation ODSQL est la forme la plus précise, mais une erreur serveur
+ * renvoyée sans en-tête CORS est indiscernable d'une panne réseau côté
+ * navigateur : on redescend donc vers des requêtes de plus en plus simples
+ * plutôt que d'échouer sur la première.
+ */
+async function fetchGroups(field, where) {
+  const strategies = [
+    {
+      nom: 'agrégation',
+      run: async () => {
+        const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
+          select: `${field}, count(*) as nb`,
+          group_by: field,
+          order_by: 'nb desc',
+          where,
+          limit: PAGE_SIZE,
+        });
+        return (data.results || []).map((row) => row[field]);
+      },
+    },
+    {
+      nom: 'facettes',
+      run: async () => {
+        const data = await apiGet(`/catalog/datasets/${DATASET}/facets`, { facet: field, where });
+        const facet = (data.facets || []).find((item) => item.name === field);
+        return (facet?.facets || []).map((item) => item.name);
+      },
+    },
+    {
+      nom: 'regroupement local',
+      partial: true,
+      run: async () => {
+        const data = await apiGet(`/catalog/datasets/${DATASET}/records`, {
+          select: field, where, limit: PAGE_SIZE,
+        });
+        return [...new Set((data.results || []).map((row) => row[field]))];
+      },
+    },
+  ];
+
+  const failures = [];
+  for (const strategy of strategies) {
+    try {
+      const values = await strategy.run();
+      state.partial = Boolean(strategy.partial);
+      return values
+        .filter((value) => value !== null && value !== undefined && value !== '')
+        .map((value) => ({ value }));
+    } catch (error) {
+      failures.push(`${strategy.nom} : ${error.message}`);
+    }
+  }
+  throw new Error(failures.join(' — '));
 }
 
 async function loadMore() {
