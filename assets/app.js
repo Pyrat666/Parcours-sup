@@ -43,13 +43,13 @@ const quote = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, 
  * Arborescence
  * ------------------------------------------------------------------ */
 
-// Ordre par défaut des niveaux. Les champs absents du schéma sont écartés au
-// démarrage, ce qui laisse l'application fonctionnelle si le jeu de données
-// change de colonnes.
+// Niveaux actifs au démarrage. Tous les autres champs textuels du jeu de
+// données sont proposés dans les réglages, désactivés : ces cinq-là ne sont
+// que les facettes du portail et ne décrivent que la formation — ni
+// établissement, ni commune.
 const DEFAULT_LEVELS = ['fl', 'tf', 'nmc', 'nm', 'amg'];
 
-// Champs servant à décrire une formation au dernier niveau.
-const RECORD_FIELDS = { titre: 'nm', lieu: 'nmc' };
+const TEXT_TYPES = ['text', 'string'];
 
 const state = {
   fields: [],      // schéma du jeu de données
@@ -175,13 +175,23 @@ async function loadMore() {
   }
 }
 
+/**
+ * Carte d'une formation au dernier niveau.
+ *
+ * Les champs qui la décrivent sont pris dans le schéma plutôt que nommés en
+ * dur : ceux que le chemin porte déjà sont écartés, et les premiers champs
+ * textuels renseignés qui restent sont ceux qui distinguent une formation
+ * d'une autre.
+ */
 function toFormationCard(record) {
-  // Ce que le chemin porte déjà n'a pas à être répété sur la carte.
-  const seen = new Set(state.path.map((step) => step.value));
-  const lieu = record[RECORD_FIELDS.lieu];
+  const used = new Set(state.path.map((step) => step.field));
+  const filled = state.fields
+    .filter((field) => TEXT_TYPES.includes(field.type) && !used.has(field.name))
+    .filter((field) => record[field.name]);
+
   return {
-    value: record[RECORD_FIELDS.titre] || 'Formation',
-    meta: lieu && !seen.has(lieu) ? lieu : '',
+    value: filled.length ? record[filled[0].name] : 'Formation',
+    meta: filled.slice(1, 4).map((field) => record[field.name]).join(' · '),
     url: state.fiche && /^https?:\/\//.test(record[state.fiche] || '') ? record[state.fiche] : null,
   };
 }
@@ -495,6 +505,31 @@ function renderSchema() {
   });
 }
 
+/**
+ * Tous les champs textuels du jeu de données, utilisables comme niveaux : les
+ * cinq par défaut d'abord et actifs, le reste ensuite et désactivé, pour que
+ * l'établissement ou la commune puissent être choisis sans toucher au code.
+ */
+function buildLevelOrder(fields) {
+  const usable = new Map(
+    fields
+      .filter((field) => TEXT_TYPES.includes(field.type))
+      // Une URL de fiche ne regroupe rien : elle est unique par formation.
+      .filter((field) => field.name !== state.fiche)
+      .map((field) => [field.name, field]),
+  );
+
+  const order = [];
+  DEFAULT_LEVELS.forEach((name) => {
+    if (usable.has(name)) {
+      order.push({ field: name, enabled: true });
+      usable.delete(name);
+    }
+  });
+  usable.forEach((_, name) => order.push({ field: name, enabled: false }));
+  return order;
+}
+
 /* ------------------------------------------------------------------ *
  * Démarrage
  * ------------------------------------------------------------------ */
@@ -523,14 +558,11 @@ async function start() {
     return;
   }
 
-  const present = new Set(state.fields.map((field) => field.name));
-  state.levelOrder = DEFAULT_LEVELS
-    .filter((field) => present.has(field))
-    .map((field) => ({ field, enabled: true }));
-
   state.fiche = state.fields
     .map((field) => field.name)
     .find((name) => /url|lien|fiche/i.test(name)) || null;
+
+  state.levelOrder = buildLevelOrder(state.fields);
 
   if (!state.levelOrder.length) {
     setStatus('Aucun des champs attendus n’est présent dans le jeu de données.', true);

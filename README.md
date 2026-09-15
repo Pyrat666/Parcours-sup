@@ -8,6 +8,11 @@ L'arborescence par défaut est `fl` → `tf` → `nmc` → `nm` → `amg`. Le bo
 de la réordonner — au même geste de tri de cartes — et de désactiver les niveaux dont on ne
 veut pas ; les niveaux ignorés disparaissent du parcours.
 
+Ces cinq champs sont les facettes du portail et ne décrivent que la formation : `nmc` est son
+nom court et `nm` son nom long, non la commune et l'établissement. Le panneau de réglage
+propose donc **tous** les champs textuels du jeu de données, les cinq par défaut actifs et le
+reste désactivé, de sorte que l'établissement ou la commune puissent devenir des niveaux.
+
 ## Données
 
 Jeu de données `fr-esr-cartographie_formations_parcoursup` (ministère de l'Enseignement
